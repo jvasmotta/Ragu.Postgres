@@ -2,9 +2,17 @@
 
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
+	<RootNamespace>Ragu.Postgres</RootNamespace>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+	<PackageIcon>nuget_logo.jpeg</PackageIcon>
+    <Description>Basic Postgres class and methods</Description>
+    <Authors>João Victor A. S. Motta</Authors>
   </PropertyGroup>
+  
+   <ItemGroup>
+    <None Include="nuget_logo.jpeg" Pack="true" Visible="false" PackagePath="\" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Dapper" Version="2.1.35" />
