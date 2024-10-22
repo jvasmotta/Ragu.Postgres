@@ -5,7 +5,7 @@ namespace Ragu.Postgres;
 
 public abstract record DatabaseRecord(string TableName)
 {
-    internal abstract PropertyInfo[] GetProperties();
+    protected abstract PropertyInfo[] GetProperties();
 
     public string GetUpsertQuery()
     {
