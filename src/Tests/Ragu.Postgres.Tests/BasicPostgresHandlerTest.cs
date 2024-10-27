@@ -1,5 +1,7 @@
 using Dapper;
+using FluentAssertions;
 using Npgsql;
+using Ragu.Postgres.Tests.Models;
 
 namespace Ragu.Postgres.Tests;
 
@@ -23,8 +25,8 @@ public class BasicPostgresHandlerTests
         new NpgsqlCommand(@"
 DO $$ 
 BEGIN
-    IF NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'sample_record') THEN
-        CREATE TABLE IF NOT EXISTS sample_record (
+    IF NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'sample_records') THEN
+        CREATE TABLE IF NOT EXISTS sample_records (
                 id VARCHAR(50) PRIMARY KEY,
                 string_column TEXT,
                 date_column TIMESTAMP,
@@ -40,6 +42,7 @@ BEGIN
 END $$;", testDbConnection).ExecuteNonQuery();
 
         BasicPostgresHandler.SetConnectionString(ConnectionString);
+        TypeMapper.Initialize("Ragu.Postgres.Tests.Models");
     }
 
     [OneTimeTearDown]
@@ -48,7 +51,7 @@ END $$;", testDbConnection).ExecuteNonQuery();
         using var connection = new NpgsqlConnection(ConnectionString);
         connection.Open();
 
-        using var cmd = new NpgsqlCommand("DROP TABLE sample_record;", connection);
+        using var cmd = new NpgsqlCommand("DROP TABLE sample_records;", connection);
         cmd.ExecuteNonQuery();
     }
 
@@ -56,36 +59,75 @@ END $$;", testDbConnection).ExecuteNonQuery();
     public void Insert()
     {
         // Arrange
-        BasicPostgresHandler<SampleRecord>.Insert(new SampleRecord("SAMPLE_ID_1"));
+        BasicPostgresHandler<SampleRecord>.Insert(SampleRecord.CreateSample("SAMPLE_ID_1"));
 
         // Assert
         using var connection = new NpgsqlConnection(ConnectionString);
         connection.Open();
 
-        using var cmd = new NpgsqlCommand("SELECT * FROM sample_record LIMIT 1;", connection);
+        using var cmd = new NpgsqlCommand("SELECT * FROM sample_records LIMIT 1;", connection);
         using var reader = cmd.ExecuteReader();
 
-        // Ensure at least one row was returned
-        Assert.That(reader.Read(), Is.True);
+        reader.Read().Should().BeTrue();
 
-        // Now verify each column's value
-        Assert.That(reader["id"], Is.EqualTo("SAMPLE_ID_1"));
-        Assert.That(reader["string_column"], Is.EqualTo("TestString"));
-        Assert.That(reader["date_column"], Is.EqualTo(DateTime.MinValue));
-        Assert.That(reader["bool_column"], Is.EqualTo(true));
-        Assert.That(reader["bytes_column"], Is.EqualTo(new byte[] { 1, 2, 3 }));
-        Assert.That(reader["null_column"], Is.EqualTo(DBNull.Value));
-        Assert.That(reader["array_column"], Is.EqualTo(new[] { "item1", "item2" }));
-        Assert.That(reader["enum_column"], Is.EqualTo("Option1"));
-        Assert.That(reader["list_column"], Is.EqualTo(new[] { "listItem1", "listItem2" }));
-        Assert.That(reader["int_column"], Is.EqualTo(123));
+        reader["id"].Should().BeEquivalentTo("SAMPLE_ID_1");
+        reader["string_column"].Should().BeEquivalentTo("TestString");
+        reader["date_column"].Should().BeEquivalentTo(DateTime.MinValue);
+        reader["bool_column"].Should().BeEquivalentTo(true);
+        reader["bytes_column"].Should().BeEquivalentTo(new byte[] { 1, 2, 3 });
+        reader["null_column"].Should().BeEquivalentTo(DBNull.Value);
+        reader["array_column"].Should().BeEquivalentTo(new[] { "item1", "item2" });
+        reader["enum_column"].Should().BeEquivalentTo("Option1");
+        reader["list_column"].Should().BeEquivalentTo(new[] { "listItem1", "listItem2" });
+        reader["int_column"].Should().BeEquivalentTo(123);
     }
 
     [Test, Order(2)]
     public void Get()
     {
+        // Arrange
         var actual = BasicPostgresHandler<SampleRecord>.Get(SampleRecord.GetFromId("SAMPLE_ID_1"));
-        Assert.That(actual.IsSome, Is.EqualTo(true));
-        Assert.That(actual.Value, Is.EqualTo(new SampleRecord("SAMPLE_ID_1")));
+        
+        // Assert
+        actual.IsSome.Should().BeTrue();
+        actual.Value.Should().BeEquivalentTo(SampleRecord.CreateSample("SAMPLE_ID_1"));
+    }
+
+    [Test, Order(3)]
+    public void Enumerate()
+    {
+        BasicPostgresHandler<SampleRecord>.Insert(SampleRecord.CreateSample("SAMPLE_ID_2"));
+        var records = BasicPostgresHandler<SampleRecord>.Enumerate(SampleRecord.GetTableName()).ToList();
+        records.Should().HaveCount(2);
+        records.Should().BeEquivalentTo(new List<SampleRecord>
+        {
+            SampleRecord.CreateSample("SAMPLE_ID_1"),
+            SampleRecord.CreateSample("SAMPLE_ID_2")
+        });
+    }
+
+    [Test, Order(4)]
+    public void Replace()
+    {
+        // Arrange
+        var modifiedSample = SampleRecord.CreateSample("SAMPLE_ID_1") with
+        {
+            IntProp = 444,
+            StringListProp = ["Modified List"]
+        };
+        BasicPostgresHandler<SampleRecord>.Upsert(modifiedSample);
+
+        // Assert
+        using var connection = new NpgsqlConnection(ConnectionString);
+        connection.Open();
+
+        using var cmd = new NpgsqlCommand("SELECT * FROM sample_records sr WHERE sr.id = 'SAMPLE_ID_1' LIMIT 1;", connection);
+        using var reader = cmd.ExecuteReader();
+
+        reader.Read().Should().BeTrue();
+
+        reader["id"].Should().BeEquivalentTo("SAMPLE_ID_1");
+        reader["list_column"].Should().BeEquivalentTo(new[] { "Modified List" });
+        reader["int_column"].Should().BeEquivalentTo(444);
     }
 }

@@ -1,4 +1,5 @@
-﻿using System.Reflection;
+﻿using System.Data;
+using System.Reflection;
 using Dapper;
 
 namespace Ragu.Postgres;
@@ -7,6 +8,8 @@ public static class TypeMapper
 {
     public static void Initialize(string @namespace)
     {
+        SqlMapper.AddTypeHandler(new StringArrayTypeHandler());
+
         var types = from assem in AppDomain.CurrentDomain.GetAssemblies().ToList()
                     from type in assem.GetTypes()
                     where type.IsClass && type.Namespace == @namespace
@@ -20,6 +23,13 @@ public static class TypeMapper
             SqlMapper.SetTypeMap(type, mapper);
         });
     }
+}
+
+public class StringArrayTypeHandler : SqlMapper.TypeHandler<List<string>>
+{
+    public override void SetValue(IDbDataParameter parameter, List<string>? value) => parameter.Value = value?.ToArray() ?? [];
+
+    public override List<string> Parse(object value) => value is string[] array ? new List<string>(array) : new List<string>();
 }
 
 public class FallBackTypeMapper(IEnumerable<SqlMapper.ITypeMap> mappers) : SqlMapper.ITypeMap

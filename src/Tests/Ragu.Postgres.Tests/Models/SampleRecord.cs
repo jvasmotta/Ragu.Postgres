@@ -1,6 +1,6 @@
 ﻿using System.Reflection;
 
-namespace Ragu.Postgres.Tests;
+namespace Ragu.Postgres.Tests.Models;
 
 public enum SampleEnum { Option1, Option2 }
 
@@ -14,7 +14,7 @@ public record SampleRecord(
     [property: PostgresColumn("array_column")] string[] StringArrayProp,
     [property: PostgresColumn("enum_column")] SampleEnum EnumProp,
     [property: PostgresColumn("list_column")] List<string> StringListProp,
-    [property: PostgresColumn("int_column")] int IntProp) : DatabaseRecord("sample_record")
+    [property: PostgresColumn("int_column")] int IntProp) : DatabaseRecord("sample_records")
 {
     public SampleRecord() : this(
         Id: null!,
@@ -25,11 +25,11 @@ public record SampleRecord(
         NullProp: null,
         StringArrayProp: [],
         EnumProp: SampleEnum.Option1,
-        StringListProp: new List<string>(),
+        StringListProp: [],
         IntProp: 0)
     { }
 
-    public SampleRecord(string id) : this(
+    public static SampleRecord CreateSample(string id) => new(
         Id: id,
         StringProp: "TestString",
         DateTimeProp: DateTime.MinValue,
@@ -39,12 +39,13 @@ public record SampleRecord(
         StringArrayProp: ["item1", "item2"],
         EnumProp: SampleEnum.Option1,
         StringListProp: new List<string> { "listItem1", "listItem2" },
-        IntProp: 123)
-    { }
+        IntProp: 123);
 
     protected override PropertyInfo[] GetProperties() => typeof(SampleRecord).GetProperties();
 
+    public static BasicPostgresHandler<SampleRecord>.TableName GetTableName() => new("sample_records");
+
     public static BasicPostgresHandler<SampleRecord>.Query GetFromId(string id) => new(
-        Value: "SELECT * FROM sample_record sr WHERE sr.id = @id",
+        Value: "SELECT * FROM sample_records sr WHERE sr.id = @id",
         Parameters: new { id });
 }
