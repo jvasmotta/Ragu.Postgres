@@ -10,9 +10,9 @@ public static class BasicPostgresHandler
 
     public static void SetConnectionString(string connectionString) => _connectionString = connectionString;
 
-    public static string? GetConnectionString() => _connectionString;
+    internal static string? GetConnectionString() => _connectionString;
 
-    public static void EnsureConnectionStringIsSet()
+    internal static void EnsureConnectionStringIsSet()
     {
         if (string.IsNullOrEmpty(_connectionString))
             throw new InvalidOperationException("Connection string is not set. Call 'SetConnectionString' before executing any operations.");

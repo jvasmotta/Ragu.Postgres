@@ -38,7 +38,9 @@ public abstract record DatabaseRecord(string TableName)
             DateTime => $"'{value:O}'",
             bool b => $"{(b ? "true" : "false")}",
             byte[] bytes => $@"E'\\x{BitConverter.ToString(bytes).Replace("-", "").ToLower()}'",
+            Array array  => $"'{{{string.Join(", ", array.Cast<object>().Select(v => $"\"{v}\""))}}}'", 
             null => "null",
+            _ when typeof(IEnumerable<string>).IsAssignableFrom(prop.PropertyType) => $"'{{{string.Join(", ", ((IEnumerable<string>)value!).Select(v => $"\"{v}\""))}}}'",
             _ when prop.PropertyType.IsEnum => $"'{value}'",
             _ => $"{value}"
         };
