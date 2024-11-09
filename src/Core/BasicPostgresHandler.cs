@@ -71,4 +71,13 @@ public static class BasicPostgresHandler<T>
 
         return 1;
     }
+
+    public static int Truncate(TableName tableName)
+    {
+        BasicPostgresHandler.EnsureConnectionStringIsSet();
+        using var connection = new NpgsqlConnection(BasicPostgresHandler.GetConnectionString());
+        connection.Open();
+        
+        return connection.Execute($"TRUNCATE TABLE {tableName.Value}");
+    }
 }

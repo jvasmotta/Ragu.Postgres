@@ -130,4 +130,19 @@ END $$;", testDbConnection).ExecuteNonQuery();
         reader["list_column"].Should().BeEquivalentTo(new[] { "Modified List" });
         reader["int_column"].Should().BeEquivalentTo(444);
     }
+
+    [Test, Order(5)]
+    public void Truncate()
+    {
+        //Arrange
+        BasicPostgresHandler<SampleRecord>.Truncate(SampleRecord.GetTableName());
+
+        //Assert
+        using var connection = new NpgsqlConnection(ConnectionString);
+        connection.Open();
+
+        using var cmd = new NpgsqlCommand("SELECT * FROM sample_records", connection);
+        using var reader = cmd.ExecuteReader();
+        reader.HasRows.Should().BeFalse();
+    }
 }
