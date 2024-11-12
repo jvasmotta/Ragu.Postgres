@@ -14,8 +14,11 @@ public record SampleRecord(
     [property: PostgresColumn("array_column")] string[] StringArrayProp,
     [property: PostgresColumn("enum_column")] SampleEnum EnumProp,
     [property: PostgresColumn("list_column")] List<string> StringListProp,
-    [property: PostgresColumn("int_column")] int IntProp) : DatabaseRecord("sample_records")
+    [property: PostgresColumn("int_column")] int IntProp,
+    [property: PostgresColumn("nested_column")] SampleRecord.NestedObject? NestedObjectProp) : DatabaseRecord("sample_records")
 {
+    public record NestedObject(string NestedString, int NestedInteger, DateTime NestedDateTime);
+    
     public SampleRecord() : this(
         Id: null!,
         StringProp: null!,
@@ -26,7 +29,8 @@ public record SampleRecord(
         StringArrayProp: [],
         EnumProp: SampleEnum.Option1,
         StringListProp: [],
-        IntProp: 0)
+        IntProp: 0,
+        NestedObjectProp: null)
     { }
 
     public static SampleRecord CreateSample(string id) => new(
@@ -39,7 +43,8 @@ public record SampleRecord(
         StringArrayProp: ["item1", "item2"],
         EnumProp: SampleEnum.Option1,
         StringListProp: new List<string> { "listItem1", "listItem2" },
-        IntProp: 123);
+        IntProp: 123,
+        NestedObjectProp: new NestedObject("NestedString", 456, DateTime.MinValue));
 
     protected override PropertyInfo[] GetProperties() => typeof(SampleRecord).GetProperties();
 

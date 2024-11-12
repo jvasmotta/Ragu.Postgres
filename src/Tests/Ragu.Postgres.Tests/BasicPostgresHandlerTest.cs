@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Dapper;
 using FluentAssertions;
 using Npgsql;
@@ -36,7 +37,8 @@ BEGIN
                 array_column TEXT[],
                 enum_column TEXT,
                 list_column TEXT[],
-                int_column INTEGER
+                int_column INTEGER,
+                nested_column JSONB
             );
     END IF;
 END $$;", testDbConnection).ExecuteNonQuery();
@@ -80,6 +82,10 @@ END $$;", testDbConnection).ExecuteNonQuery();
         reader["enum_column"].Should().BeEquivalentTo("Option1");
         reader["list_column"].Should().BeEquivalentTo(new[] { "listItem1", "listItem2" });
         reader["int_column"].Should().BeEquivalentTo(123);
+        
+        JsonSerializer.Deserialize<SampleRecord.NestedObject>(reader["nested_column"].ToString() ?? string.Empty)
+            .Should()
+            .BeEquivalentTo(new SampleRecord.NestedObject("NestedString", 456, DateTime.MinValue));
     }
 
     [Test, Order(2)]

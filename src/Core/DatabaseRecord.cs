@@ -1,4 +1,5 @@
 ﻿using System.Reflection;
+using System.Text.Json;
 using DiscriminatedOnions;
 
 namespace Ragu.Postgres;
@@ -42,6 +43,7 @@ public abstract record DatabaseRecord(string TableName)
             null => "null",
             _ when typeof(IEnumerable<string>).IsAssignableFrom(prop.PropertyType) => $"'{{{string.Join(", ", ((IEnumerable<string>)value!).Select(v => $"\"{v}\""))}}}'",
             _ when prop.PropertyType.IsEnum => $"'{value}'",
+            _ when prop.PropertyType.IsClass && prop.PropertyType != typeof(string) => $"'{JsonSerializer.Serialize(value, JsonSerializerUtils.DefaultOptions).Replace("'", "''")}'",
             _ => $"{value}"
         };
     }
