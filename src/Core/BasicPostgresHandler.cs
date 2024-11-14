@@ -22,6 +22,7 @@ public static class BasicPostgresHandler
 public static class BasicPostgresHandler<T>
 {
     public record struct Query(string Value, object? Parameters);
+    public record struct Condition(string Value, object? Parameters);
     public record struct TableName(string Value);
 
     public static Option<T> Get(Query query)
@@ -70,6 +71,15 @@ public static class BasicPostgresHandler<T>
             connection.Execute(databaseRecord.GetInsertQuery());
 
         return 1;
+    }
+
+    public static int Delete(TableName tableName, string conditionClause)
+    {
+        BasicPostgresHandler.EnsureConnectionStringIsSet();
+        using var connection = new NpgsqlConnection(BasicPostgresHandler.GetConnectionString());
+        connection.Open();
+        
+        return connection.Execute($"DELETE FROM {tableName.Value} WHERE {conditionClause}");
     }
 
     public static int Truncate(TableName tableName)

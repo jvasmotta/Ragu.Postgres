@@ -138,6 +138,22 @@ END $$;", testDbConnection).ExecuteNonQuery();
     }
 
     [Test, Order(5)]
+    public void DeleteOne()
+    {
+        //Arrange
+        BasicPostgresHandler<SampleRecord>.Delete(SampleRecord.GetTableName(), "id = 'SAMPLE_ID_2'");
+
+        // Assert
+        using var connection = new NpgsqlConnection(ConnectionString);
+        connection.Open();
+
+        using var cmd = new NpgsqlCommand("SELECT * FROM sample_records sr WHERE sr.id = 'SAMPLE_ID_2' LIMIT 1;", connection);
+        using var reader = cmd.ExecuteReader();
+
+        reader.Read().Should().BeFalse();
+    }
+
+    [Test, Order(6)]
     public void Truncate()
     {
         //Arrange
