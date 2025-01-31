@@ -28,7 +28,7 @@ DO $$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'sample_records') THEN
         CREATE TABLE IF NOT EXISTS sample_records (
-                id VARCHAR(50) PRIMARY KEY,
+                id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
                 string_column TEXT,
                 date_column TIMESTAMP,
                 bool_column BOOLEAN,
@@ -61,7 +61,7 @@ END $$;", testDbConnection).ExecuteNonQuery();
     public void Insert()
     {
         // Arrange
-        BasicPostgresHandler<SampleRecord>.Insert(SampleRecord.CreateSample("SAMPLE_ID_1"));
+        BasicPostgresHandler<SampleRecord>.Insert(SampleRecord.CreateSample());
 
         // Assert
         using var connection = new NpgsqlConnection(ConnectionString);
@@ -72,7 +72,7 @@ END $$;", testDbConnection).ExecuteNonQuery();
 
         reader.Read().Should().BeTrue();
 
-        reader["id"].Should().BeEquivalentTo("SAMPLE_ID_1");
+        reader["id"].Should().BeEquivalentTo(1);
         reader["string_column"].Should().BeEquivalentTo("TestString");
         reader["date_column"].Should().BeEquivalentTo(DateTime.MinValue);
         reader["bool_column"].Should().BeEquivalentTo(true);
@@ -82,7 +82,7 @@ END $$;", testDbConnection).ExecuteNonQuery();
         reader["enum_column"].Should().BeEquivalentTo("Option1");
         reader["list_column"].Should().BeEquivalentTo(new[] { "listItem1", "listItem2" });
         reader["int_column"].Should().BeEquivalentTo(123);
-        
+
         JsonSerializer.Deserialize<SampleRecord.NestedObject>(reader["nested_column"].ToString() ?? string.Empty)
             .Should()
             .BeEquivalentTo(new SampleRecord.NestedObject("NestedString", 456, DateTime.MinValue));
@@ -92,23 +92,23 @@ END $$;", testDbConnection).ExecuteNonQuery();
     public void Get()
     {
         // Arrange
-        var actual = BasicPostgresHandler<SampleRecord>.Get(SampleRecord.GetFromId("SAMPLE_ID_1"));
-        
+        var actual = BasicPostgresHandler<SampleRecord>.Get(SampleRecord.GetFromId(1));
+
         // Assert
         actual.IsSome.Should().BeTrue();
-        actual.Value.Should().BeEquivalentTo(SampleRecord.CreateSample("SAMPLE_ID_1"));
+        actual.Value.Should().BeEquivalentTo(SampleRecord.CreateSample() with { Id = 1 });
     }
 
     [Test, Order(3)]
     public void Enumerate()
     {
-        BasicPostgresHandler<SampleRecord>.Insert(SampleRecord.CreateSample("SAMPLE_ID_2"));
+        BasicPostgresHandler<SampleRecord>.Insert(SampleRecord.CreateSample());
         var records = BasicPostgresHandler<SampleRecord>.Enumerate(SampleRecord.GetTableName()).ToList();
         records.Should().HaveCount(2);
         records.Should().BeEquivalentTo(new List<SampleRecord>
         {
-            SampleRecord.CreateSample("SAMPLE_ID_1"),
-            SampleRecord.CreateSample("SAMPLE_ID_2")
+            SampleRecord.CreateSample() with { Id = 1 },
+            SampleRecord.CreateSample() with { Id = 2 }
         });
     }
 
@@ -116,8 +116,9 @@ END $$;", testDbConnection).ExecuteNonQuery();
     public void Replace()
     {
         // Arrange
-        var modifiedSample = SampleRecord.CreateSample("SAMPLE_ID_1") with
+        var modifiedSample = SampleRecord.CreateSample() with
         {
+            Id = 1,
             IntProp = 444,
             StringListProp = ["Modified List"]
         };
@@ -127,12 +128,12 @@ END $$;", testDbConnection).ExecuteNonQuery();
         using var connection = new NpgsqlConnection(ConnectionString);
         connection.Open();
 
-        using var cmd = new NpgsqlCommand("SELECT * FROM sample_records sr WHERE sr.id = 'SAMPLE_ID_1' LIMIT 1;", connection);
+        using var cmd = new NpgsqlCommand("SELECT * FROM sample_records sr WHERE sr.id = 1 LIMIT 1;", connection);
         using var reader = cmd.ExecuteReader();
 
         reader.Read().Should().BeTrue();
 
-        reader["id"].Should().BeEquivalentTo("SAMPLE_ID_1");
+        reader["id"].Should().BeEquivalentTo(1);
         reader["list_column"].Should().BeEquivalentTo(new[] { "Modified List" });
         reader["int_column"].Should().BeEquivalentTo(444);
     }
@@ -141,13 +142,13 @@ END $$;", testDbConnection).ExecuteNonQuery();
     public void DeleteOne()
     {
         //Arrange
-        BasicPostgresHandler<SampleRecord>.Delete(SampleRecord.GetTableName(), "id = 'SAMPLE_ID_2'");
+        BasicPostgresHandler<SampleRecord>.Delete(SampleRecord.GetTableName(), "id = 2");
 
         // Assert
         using var connection = new NpgsqlConnection(ConnectionString);
         connection.Open();
 
-        using var cmd = new NpgsqlCommand("SELECT * FROM sample_records sr WHERE sr.id = 'SAMPLE_ID_2' LIMIT 1;", connection);
+        using var cmd = new NpgsqlCommand("SELECT * FROM sample_records sr WHERE sr.id = 2 LIMIT 1;", connection);
         using var reader = cmd.ExecuteReader();
 
         reader.Read().Should().BeFalse();
