@@ -11,66 +11,27 @@ public abstract record DatabaseRecord(string TableName)
     public string GetUpsertQuery()
     {
         var propertyInfos = GetProperties();
+        var properties = propertyInfos.Where(prop => prop.GetCustomAttribute<PostgresColumn>()?.Name is not null).ToReadOnlyList();
+
         var identityProp = propertyInfos.SingleOrDefault(prop => prop.GetCustomAttribute<Identity>() is not null);
-        if (identityProp is null)
-        {
-            var properties = propertyInfos
-                .Where(prop => prop.GetCustomAttribute<PostgresColumn>()?.Name is not null)
-                .ToReadOnlyList();
+        if (identityProp is not null) 
+            properties = properties.Where(prop => prop.GetCustomAttribute<Identity>() is null).ToReadOnlyList();
 
-            var propertyNames = string.Join(", ", properties.Select(prop => $"{prop.GetCustomAttribute<PostgresColumn>()!.Name}"));
-            var propertyValues = string.Join(", ", properties.Select(TranslatePropValue));
+        var propertyNames = string.Join(", ", properties.Select(prop => $"{prop.GetCustomAttribute<PostgresColumn>()!.Name}"));
+        var propertyValues = string.Join(", ", properties.Select(TranslatePropValue));
 
-            var primaryKeyColumn = propertyInfos
-                .Single(prop => prop.GetCustomAttribute<PrimaryKey>() is not null)
-                .GetCustomAttribute<PostgresColumn>()!.Name;
+        var updateColumns = string.Join(
+            separator: ", ",
+            values: properties.Select(prop => $"{prop.GetCustomAttribute<PostgresColumn>()!.Name} = {TranslatePropValue(prop)}"));
 
-            var updateColumns = string.Join(", ", properties
-                .Select(prop => $"{prop.GetCustomAttribute<PostgresColumn>()!.Name} = {TranslatePropValue(prop)}"));
-
-            return $"""
-                    INSERT INTO {TableName} ({propertyNames}) VALUES ({propertyValues})
-                    ON CONFLICT ({primaryKeyColumn}) DO UPDATE
-                    SET {updateColumns};
-                    """;
-        }
-        else
-        {
-            var properties = propertyInfos
-                .Where(prop => prop.GetCustomAttribute<PostgresColumn>()?.Name is not null)
-                .Where(prop => prop.GetCustomAttribute<Identity>() is null)
-                .ToReadOnlyList();
-
-            var propertyNames = string.Join(", ", properties.Select(prop => $"{prop.GetCustomAttribute<PostgresColumn>()!.Name}"));
-            var propertyValues = string.Join(", ", properties.Select(TranslatePropValue));
-
-            var updateColumns = string.Join(
-                separator: ", ", 
-                values: properties.Select(prop => $"{prop.GetCustomAttribute<PostgresColumn>()!.Name} = {TranslatePropValue(prop)}")
-            );
-            
-            var whereCondition = $"WHERE {identityProp.GetCustomAttribute<PostgresColumn>()!.Name} = {identityProp.GetValue(this)}";
-            return $"""
-                    DO $$ 
-                    DECLARE 
-                        record_exists BOOLEAN;
-                    BEGIN
-                        SELECT EXISTS(
-                            SELECT 1 
-                            FROM {TableName} 
-                            {whereCondition}
-                        ) INTO record_exists;
-                    
-                        IF record_exists THEN
-                            UPDATE {TableName} 
-                            SET {updateColumns}
-                            {whereCondition};
-                        ELSE
-                            INSERT INTO {TableName} ({propertyNames}) VALUES ({propertyValues});
-                        END IF;
-                    END $$;
-                    """;
-        }
+        if (identityProp is not null)
+            return UpdateOnIfConditionScript(propertyNames, propertyValues, identityProp, updateColumns);
+        
+        return InsertOnConflictScript(
+            propNames: propertyNames, 
+            propValues: propertyValues, 
+            primaryKeyColumn: propertyInfos.Single(prop => prop.GetCustomAttribute<PrimaryKey>() is not null).GetCustomAttribute<PostgresColumn>()!.Name, 
+            updateColumns: updateColumns);
     }
 
     public string GetInsertQuery()
@@ -102,6 +63,38 @@ public abstract record DatabaseRecord(string TableName)
             _ when prop.PropertyType.IsClass && prop.PropertyType != typeof(string) => $"'{JsonSerializer.Serialize(value, JsonSerializerUtils.DefaultOptions).Replace("'", "''")}'",
             _ => $"{value}"
         };
+    }
+    private string InsertOnConflictScript(string propNames, string propValues, string primaryKeyColumn, string updateColumns)
+    {
+        return $"""
+                INSERT INTO {TableName} ({propNames}) VALUES ({propValues})
+                ON CONFLICT ({primaryKeyColumn}) DO UPDATE
+                SET {updateColumns};
+                """;
+    }
+
+    private string UpdateOnIfConditionScript(string propNames, string propValues, PropertyInfo identityProp, string updateColumns)
+    {
+        return $"""
+                DO $$ 
+                DECLARE 
+                    record_exists BOOLEAN;
+                BEGIN
+                    SELECT EXISTS(
+                        SELECT 1 
+                        FROM {TableName} 
+                        WHERE {identityProp.GetCustomAttribute<PostgresColumn>()!.Name} = {identityProp.GetValue(this)}
+                    ) INTO record_exists;
+                
+                    IF record_exists THEN
+                        UPDATE {TableName} 
+                        SET {updateColumns}
+                        WHERE {identityProp.GetCustomAttribute<PostgresColumn>()!.Name} = {identityProp.GetValue(this)};
+                    ELSE
+                        INSERT INTO {TableName} ({propNames}) VALUES ({propValues});
+                    END IF;
+                END $$;
+                """;
     }
 }
 
