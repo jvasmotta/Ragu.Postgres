@@ -5,7 +5,7 @@ namespace Ragu.Postgres.Tests.Models;
 public enum SampleEnum { Option1, Option2 }
 
 public record SampleRecord(
-    [property: Identity, PrimaryKey, PostgresColumn("id")] long Id,
+    [property: PrimaryKey, PostgresColumn("id")] string Id,
     [property: PostgresColumn("string_column")] string StringProp,
     [property: PostgresColumn("date_column")] DateTime DateTimeProp,
     [property: PostgresColumn("bool_column")] bool BoolProp,
@@ -20,7 +20,7 @@ public record SampleRecord(
     public record NestedObject(string NestedString, int NestedInteger, DateTime NestedDateTime);
     
     public SampleRecord() : this(
-        Id: 0,
+        Id: null!,
         StringProp: null!,
         DateTimeProp: DateTime.MinValue,
         BoolProp: false,
@@ -33,8 +33,8 @@ public record SampleRecord(
         NestedObjectProp: null)
     { }
 
-    public static SampleRecord CreateSample() => new(
-        Id: 0,
+    public static SampleRecord CreateSample(string id) => new(
+        Id: id,
         StringProp: "TestString",
         DateTimeProp: DateTime.MinValue,
         BoolProp: true,
@@ -50,7 +50,20 @@ public record SampleRecord(
 
     public static BasicPostgresHandler<SampleRecord>.TableName GetTableName() => new("sample_records");
 
-    public static BasicPostgresHandler<SampleRecord>.Query GetFromId(long id) => new(
+    public static BasicPostgresHandler<SampleRecord>.Query GetFromId(string id) => new(
         Value: "SELECT * FROM sample_records sr WHERE sr.id = @id",
+        Parameters: new { id });
+}
+public record SampleIdentityRecord(
+    [property: Identity, PrimaryKey, PostgresColumn("id")] long Id,
+    [property: PostgresColumn("string_column")] string StringProp) : DatabaseRecord("sample_identity_records")
+{
+    protected override PropertyInfo[] GetProperties() => typeof(SampleIdentityRecord).GetProperties();
+    public SampleIdentityRecord() : this(Id: 0, StringProp: null!) { }
+    public static SampleIdentityRecord CreateSample() => new(Id: 0, StringProp: "TestString");
+    public static BasicPostgresHandler<SampleIdentityRecord>.TableName GetTableName() => new("sample_identity_records");
+
+    public static BasicPostgresHandler<SampleIdentityRecord>.Query GetFromId(long id) => new(
+        Value: "SELECT * FROM sample_identity_records sr WHERE sr.id = @id",
         Parameters: new { id });
 }
